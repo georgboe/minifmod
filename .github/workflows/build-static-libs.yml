@@ -1,0 +1,58 @@
+name: Build Static Libraries
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        preset: [x86-release, x64-release]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup VS Developer Command Prompt
+      uses: ilammy/msvc-dev-cmd@v1
+    
+    - name: Install Ninja
+      run: choco install ninja
+    
+    - name: Configure CMake (${{ matrix.preset }})
+      run: |
+        cmake --preset=${{ matrix.preset }}
+    
+    - name: Build (${{ matrix.preset }})
+      run: |
+        cmake --build out/build/${{ matrix.preset }}
+    
+    - name: Create artifact directory
+      run: |
+        mkdir artifacts\${{ matrix.preset }}
+    
+    - name: Copy static libraries
+      shell: pwsh
+      run: |
+        $buildDir = "out/build/${{ matrix.preset }}"
+        $artifactDir = "artifacts/${{ matrix.preset }}"
+        
+        # Copy all .lib files (static libraries)
+        Get-ChildItem -Path $buildDir -Recurse -Filter "*.lib" | ForEach-Object {
+          Copy-Item $_.FullName -Destination $artifactDir
+        }
+        
+        # Copy all .pdb files (debug symbols) for release builds too
+        Get-ChildItem -Path $buildDir -Recurse -Filter "*.pdb" | ForEach-Object {
+          Copy-Item $_.FullName -Destination $artifactDir
+        }
+    
+    - name: Upload static libraries
+      uses: actions/upload-artifact@v4
+      with:
+        name: minifmod-static-libs-${{ matrix.preset }}
+        path: artifacts/${{ matrix.preset }}
+        retention-days: 90
