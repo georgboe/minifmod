@@ -34,7 +34,7 @@ jobs:
       run: |
         mkdir artifacts\${{ matrix.preset }}
     
-    - name: Copy static libraries
+    - name: Copy static libraries and headers
       shell: pwsh
       run: |
         $buildDir = "out/build/${{ matrix.preset }}"
@@ -45,9 +45,21 @@ jobs:
           Copy-Item $_.FullName -Destination $artifactDir
         }
         
-        # Copy all .pdb files (debug symbols) for release builds too
-        Get-ChildItem -Path $buildDir -Recurse -Filter "*.pdb" | ForEach-Object {
-          Copy-Item $_.FullName -Destination $artifactDir
+        # Create include directory structure and copy headers
+        $includeDir = "$artifactDir/include"
+        New-Item -ItemType Directory -Path $includeDir -Force
+        
+        # Copy header files from each library's include directory
+        $headerDirs = @(
+          "libs/minifmod/include",
+          "libs/minixm/include", 
+          "libs/winmm_playback/include"
+        )
+        
+        foreach ($headerDir in $headerDirs) {
+          if (Test-Path $headerDir) {
+            Copy-Item -Path $headerDir/* -Destination $includeDir -Recurse -Force
+          }
         }
     
     - name: Upload static libraries
